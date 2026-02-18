@@ -3,7 +3,9 @@ import folium
 from streamlit_folium import st_folium
 import pandas as pd
 from supabase import create_client
-
+import os
+from dotenv import load_dotenv
+load_dotenv()
 st.set_page_config(
     page_title="Электростанции России",
     page_icon="⚡",
@@ -11,9 +13,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-SUPABASE_URL = "https://xfcrnexxamqbewxffvns.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmY3JuZXh4YW1xYmV3eGZmdm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NzI1MzksImV4cCI6MjA3NzE0ODUzOX0.bU1dp2BtK_Nqs83n2NJtX8cMmOnNFGF2oUWHHTWUptI"
-
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 # Инициализация session state
 if 'df' not in st.session_state:
     st.session_state.df = pd.DataFrame()
