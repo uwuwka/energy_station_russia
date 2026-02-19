@@ -276,7 +276,7 @@ def main():
     m = folium.Map(
         location=[64.6863136, 97.7453061],
         zoom_start=4,
-        min_zoom=4,
+        min_zoom=6,
     )
     for _, plant in filtered_df.iterrows():
         popup_text = f"""
