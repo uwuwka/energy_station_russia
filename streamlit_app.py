@@ -97,7 +97,7 @@ def load_supabase_data():
                 if response.data:
                     for plant in response.data:
                         name = plant.get(config['fields']['name']) or 'Неизвестно'
-                        power = plant.get(config['fields']['power']) or 0.1
+                        power = plant.get(config['fields']['power']) or 1
                         region = plant.get(config['fields']['region']) or 'Неизвестно'
                         owner = plant.get(config['fields']['owner']) or 'Неизвестно'
                         fuel = plant.get(config['fields'].get('fuel', '')) or config['fields'].get('fuel', 'Неизвестно')
@@ -156,7 +156,6 @@ def get_demo_data():
 def apply_filters_and_sorting(df, filters):
     filtered_df = df.copy()
 
-    # Применение фильтров
     if filters['types']:
         filtered_df = filtered_df[filtered_df['Тип'].isin(filters['types'])]
     if filters['regions']:
@@ -165,13 +164,7 @@ def apply_filters_and_sorting(df, filters):
         filtered_df = filtered_df[filtered_df['Название'].isin(filters['names'])]
     if filters['owners']:
         filtered_df = filtered_df[filtered_df['Владелец'].isin(filters['owners'])]
-    filtered_df = filtered_df[filtered_df['Мощность (МВт)'] >= filters['min_power']]
-
-    if filters['sort_by']:
-        filtered_df = filtered_df.sort_values(
-            by=filters['sort_by'],
-            ascending=filters['sort_ascending']
-        )
+    filtered_df = filtered_df[ filters['min_power'] >= filtered_df['Мощность (МВт)']]
 
     return filtered_df
 
@@ -209,7 +202,6 @@ def main():
             'names': [],
             'owners': [],
             'min_power': 0,
-            'sort_by': None,
             'sort_ascending': True
         }
 
@@ -223,8 +215,8 @@ def main():
             )
 
             filters['min_power'] = st.slider(
-                "Минимальная мощность (МВт):",
-                0, int(df['Мощность (МВт)'].max()), 0
+                "Максимальная мощность (МВт):",
+                0, int(df['Мощность (МВт)'].max()), int(df['Мощность (МВт)'].max())
             )
 
             filters['regions'] = st.multiselect(
@@ -245,23 +237,6 @@ def main():
                 default=[]
             )
 
-            st.divider()
-            st.header("📊 Сортировка")
-
-            filters['sort_by'] = st.selectbox(
-                "Сортировать по:",
-                options=[None, 'Название', 'Тип', 'Регион', 'Мощность (МВт)', 'Владелец'],
-                format_func=lambda x: 'Без сортировки' if x is None else x
-            )
-
-            if filters['sort_by']:
-                filters['sort_ascending'] = st.radio(
-                    "Порядок сортировки:",
-                    ["По возрастанию", "По убыванию"],
-                    horizontal=True
-                ) == "По возрастанию"
-
-        st.divider()
         st.header("Легенда")
         st.markdown("""
         - ⚛️ **АЭС** - Атомные электростанции
@@ -309,7 +284,7 @@ def main():
             <h3 style="color: #1f77b4; margin-bottom: 10px;">{plant['Название']}</h3>
             <table style="width: 100%; border-collapse: collapse;">
                 <tr><td style="padding: 4px;"><b>Тип:</b></td><td style="padding: 4px;">{plant['Тип']}</td></tr>
-                <tr><td style="padding: 4px;"><b>Мощность:</b></td><td style="padding: 4px;">{plant['Мощность (МВт)']:,.0f} МВт</td></tr>
+                <tr><td style="padding: 4px;"><b>Мощность:</b></td><td style="padding: 4px;">{plant['Мощность (МВт)']:,.1f} МВт</td></tr>
                 <tr><td style="padding: 4px;"><b>Владелец:</b></td><td style="padding: 4px;">{plant['Владелец']}</td></tr>
                 <tr><td style="padding: 4px;"><b>Регион:</b></td><td style="padding: 4px;">{plant['Регион']}</td></tr>
                 <tr><td style="padding: 4px;"><b>Топливо:</b></td><td style="padding: 4px;">{plant['Топливо']}</td></tr>
@@ -320,7 +295,7 @@ def main():
         folium.Marker(
             [plant['Широта'], plant['Долгота']],
             popup=folium.Popup(popup_text, max_width=350),
-            tooltip=f"{plant['Название']} ({plant['Тип']}) - {plant['Мощность (МВт)']:,.0f} МВт",
+            tooltip=f"{plant['Название']} ({plant['Тип']}) - {plant['Мощность (МВт)']:,.1f} МВт",
             icon=get_plant_icon(plant['Тип'])
         ).add_to(m)
 
@@ -341,9 +316,9 @@ def main():
                 use_container_width=True,
                 height=400,
                 column_config={
-                    "Мощность (МВт)": st.column_config.NumberColumn(format="%d"),
-                    "Широта": st.column_config.NumberColumn(format="%.6f"),
-                    "Долгота": st.column_config.NumberColumn(format="%.6f")
+                    "Мощность (МВт)": st.column_config.NumberColumn(format="%.1f"),
+                    "Широта": st.column_config.NumberColumn(format="%.4f"),
+                    "Долгота": st.column_config.NumberColumn(format="%.4f")
                 }
             )
     else:
