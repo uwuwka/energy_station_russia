@@ -157,7 +157,8 @@ def apply_filters_and_sorting(df, filters):
         filtered_df = filtered_df[filtered_df['Название'].isin(filters['names'])]
     if filters['owners']:
         filtered_df = filtered_df[filtered_df['Владелец'].isin(filters['owners'])]
-    filtered_df = filtered_df[filtered_df['Мощность (МВт)'] <= filters['max_power']]
+    filtered_df = filtered_df[(filtered_df['Мощность (МВт)'] >= filters['min_power']) &
+                              (filtered_df['Мощность (МВт)'] <= filters['max_power'])]
 
     return filtered_df
 
@@ -272,6 +273,7 @@ def main():
             'regions': [],
             'names': [],
             'owners': [],
+            'min_power': 0,
             'max_power': 0,
         }
 
@@ -284,11 +286,25 @@ def main():
                 default=sorted(df['Тип'].unique())
             )
 
+            min_power_val = int(df['Мощность (МВт)'].min())
             max_power_val = int(df['Мощность (МВт)'].max())
-            filters['max_power'] = st.slider(
-                "Максимальная мощность (МВт):",
-                0, max_power_val, max_power_val
-            )
+            col1, col2 = st.columns(2)
+            with col1:
+                filters['min_power'] = st.number_input(
+                    "Мин. мощность (МВт):",
+                    min_value=0,
+                    max_value=max_power_val,
+                    value=min_power_val,
+                    step=1
+                )
+            with col2:
+                filters['max_power'] = st.number_input(
+                    "Макс. мощность (МВт):",
+                    min_value=0,
+                    max_value=max_power_val,
+                    value=max_power_val,
+                    step=1
+                )
 
             filters['regions'] = st.multiselect(
                 "Регион:",
@@ -307,7 +323,6 @@ def main():
                 options=sorted(df['Владелец'].unique()),
                 default=[]
             )
-
 
     if st.session_state.df.empty:
         st.info("👆 Нажмите кнопку 'Загрузить данные' в сайдбаре для начала работы")
