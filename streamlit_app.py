@@ -195,9 +195,9 @@ def create_yandex_map(df, api_key):
                 }};
 
                 var symbols = {{
-                    'АЭС': 'icons['АЭС']',
-                    'ГЭС': icons['ГЭС'],
-                    'ТЭЦ': icons['ТЭЦ']
+                    'АЭС': '⚛️',
+                    'ГЭС': '💧',
+                    'ТЭЦ': '🔥'
                 }};
 
                 for (var i = 0; i < plants.length; i++) {{
@@ -286,17 +286,16 @@ def main():
                 default=sorted(df['Тип'].unique())
             )
 
-            min_power_val = int(df['Мощность (МВт)'].min())
             max_power_val = int(df['Мощность (МВт)'].max())
-            col1, col2 = st.columns(2)
-            with col1:
+            col_min, col_max = st.columns(2)
+            with col_min:
                 filters['min_power'] = st.number_input(
                     "Мин. мощность (МВт):",
                     min_value=0,
                     max_value=max_power_val,
-                    value=min_power_val
+                    value=0
                 )
-            with col2:
+            with col_max:
                 filters['max_power'] = st.number_input(
                     "Макс. мощность (МВт):",
                     min_value=0,
