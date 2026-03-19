@@ -195,9 +195,9 @@ def create_yandex_map(df, api_key):
                 }};
 
                 var symbols = {{
-                    'АЭС': '⚛️',
-                    'ГЭС': '💧',
-                    'ТЭЦ': '🔥'
+                    'АЭС': icons['АЭС'],
+                    'ГЭС': icons['ГЭС'],
+                    'ТЭЦ': icons['ТЭЦ']
                 }};
 
                 for (var i = 0; i < plants.length; i++) {{
