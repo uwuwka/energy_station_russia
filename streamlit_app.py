@@ -195,7 +195,7 @@ def create_yandex_map(df, api_key):
                 }};
 
                 var symbols = {{
-                    'АЭС': icons['АЭС'],
+                    'АЭС': 'icons['АЭС']',
                     'ГЭС': icons['ГЭС'],
                     'ТЭЦ': icons['ТЭЦ']
                 }};
