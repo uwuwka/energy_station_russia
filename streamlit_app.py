@@ -294,16 +294,14 @@ def main():
                     "Мин. мощность (МВт):",
                     min_value=0,
                     max_value=max_power_val,
-                    value=min_power_val,
-                    step=1
+                    value=min_power_val
                 )
             with col2:
                 filters['max_power'] = st.number_input(
                     "Макс. мощность (МВт):",
                     min_value=0,
                     max_value=max_power_val,
-                    value=max_power_val,
-                    step=1
+                    value=max_power_val
                 )
 
             filters['regions'] = st.multiselect(
