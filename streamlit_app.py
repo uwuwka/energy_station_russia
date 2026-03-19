@@ -1,11 +1,12 @@
 import streamlit as st
-import folium
-from streamlit_folium import st_folium
 import pandas as pd
 from supabase import create_client
 import os
 from dotenv import load_dotenv
+import streamlit.components.v1 as components
+
 load_dotenv()
+
 st.set_page_config(
     page_title="Электростанции России",
     page_icon="⚡",
@@ -15,7 +16,10 @@ st.set_page_config(
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-# Инициализация session state
+YANDEX_APIKEY = os.getenv("YANDEX_KEY")
+
+icons = {'АЭС': '⚛️', 'ГЭС': '💧', 'ТЭЦ': '🔥'}
+
 if 'df' not in st.session_state:
     st.session_state.df = pd.DataFrame()
 if 'data_source' not in st.session_state:
@@ -33,17 +37,6 @@ def parse_coordinates(coord_text):
     except (ValueError, TypeError):
         pass
     return None, None
-
-
-def get_plant_icon(plant_type):
-    icons = {'АЭС': '⚛️', 'ГЭС': '💧', 'ТЭЦ': '🔥'}
-    colors = {'АЭС': 'red', 'ГЭС': 'blue', 'ТЭЦ': 'orange'}
-    color = colors.get(plant_type, 'gray')
-    icon = icons.get(plant_type, '🏭')
-    return folium.DivIcon(
-        html=f'<div style="font-size: 20px; color: {color};">{icon}</div>',
-        icon_size=(20, 20), icon_anchor=(10, 10)
-    )
 
 
 @st.cache_data(ttl=3600)
@@ -164,13 +157,91 @@ def apply_filters_and_sorting(df, filters):
         filtered_df = filtered_df[filtered_df['Название'].isin(filters['names'])]
     if filters['owners']:
         filtered_df = filtered_df[filtered_df['Владелец'].isin(filters['owners'])]
-    filtered_df = filtered_df[ filters['min_power'] >= filtered_df['Мощность (МВт)']]
+    filtered_df = filtered_df[filtered_df['Мощность (МВт)'] <= filters['max_power']]
 
     return filtered_df
 
 
+def create_yandex_map(df, api_key):
+    plants_json = df.to_json(orient='records', force_ascii=False)
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <script src="https://api-maps.yandex.ru/2.1/?apikey={api_key}&lang=ru_RU" type="text/javascript"></script>
+        <script type="text/javascript">
+            ymaps.ready(init);
+
+            function init() {{
+                var myMap = new ymaps.Map("map", {{
+                    center: [64.5, 97.0],
+                    zoom: 4,
+                    controls: ['zoomControl']
+                }});
+
+                var plants = {plants_json};
+                console.log("Загружено станций:", plants.length);
+                if (plants.length > 0) {{
+                    console.log("Первая станция:", plants[0]);
+                }}
+
+                var colors = {{
+                    'АЭС': 'red',
+                    'ГЭС': 'blue',
+                    'ТЭЦ': 'orange'
+                }};
+
+                var symbols = {{
+                    'АЭС': '⚛️',
+                    'ГЭС': '💧',
+                    'ТЭЦ': '🔥'
+                }};
+
+                for (var i = 0; i < plants.length; i++) {{
+                    var p = plants[i];
+                    var color = colors[p['Тип']] || 'gray';
+                    var symbol = symbols[p['Тип']] || '•';
+
+                    var balloonContent = '<b>' + p['Название'] + '</b><br>' +
+                                         'Тип: ' + p['Тип'] + '<br>' +
+                                         'Мощность: ' + p['Мощность (МВт)'] + ' МВт<br>' +
+                                         'Владелец: ' + p['Владелец'] + '<br>' +
+                                         'Регион: ' + p['Регион'] + '<br>' +
+                                         'Топливо: ' + p['Топливо'];
+
+                    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">' +
+                              '<text x="60" y="62" font-size="50" text-anchor="middle" fill="white" font-family="Arial, sans-serif">' + symbol + '</text>' +
+                              '</svg>';
+                    var svgData = 'data:image/svg+xml,' + encodeURIComponent(svg);
+
+                    var placemark = new ymaps.Placemark(
+                        [p['Широта'], p['Долгота']],
+                        {{ balloonContent: balloonContent }},
+                        {{
+                            iconLayout: 'default#image',
+                            iconImageHref: svgData,
+                            iconImageSize: [40, 40],
+                            iconImageOffset: [-20, -20]
+                        }}
+                    );
+
+                    myMap.geoObjects.add(placemark);
+                }}
+            }}
+        </script>
+    </head>
+    <body>
+        <div id="map" style="width: 100%; height: 600px;"></div>
+    </body>
+    </html>
+    """
+    return html
+
+
 def main():
-    st.title("Карта электростанций России")
+    st.title("⚡ Карта электростанций России")
     st.markdown("Интерактивная карта АЭС, ГЭС и ТЭС Российской Федерации")
 
     with st.sidebar:
@@ -201,8 +272,7 @@ def main():
             'regions': [],
             'names': [],
             'owners': [],
-            'min_power': 0,
-            'sort_ascending': True
+            'max_power': 0,
         }
 
         if not st.session_state.df.empty:
@@ -214,9 +284,10 @@ def main():
                 default=sorted(df['Тип'].unique())
             )
 
-            filters['min_power'] = st.slider(
+            max_power_val = int(df['Мощность (МВт)'].max())
+            filters['max_power'] = st.slider(
                 "Максимальная мощность (МВт):",
-                0, int(df['Мощность (МВт)'].max()), int(df['Мощность (МВт)'].max())
+                0, max_power_val, max_power_val
             )
 
             filters['regions'] = st.multiselect(
@@ -237,12 +308,6 @@ def main():
                 default=[]
             )
 
-        st.header("Легенда")
-        st.markdown("""
-        - ⚛️ **АЭС** - Атомные электростанции
-        - 💧 **ГЭС** - Гидроэлектростанции  
-        - 🔥 **ТЭЦ** - Теплоэлектроцентрали
-        """)
 
     if st.session_state.df.empty:
         st.info("👆 Нажмите кнопку 'Загрузить данные' в сайдбаре для начала работы")
@@ -252,17 +317,17 @@ def main():
 
     st.subheader("📈 Общая статистика")
     col1, col2, col3, col4, col5 = st.columns(5)
-
     with col1:
         st.metric("Всего станций", len(filtered_df))
     with col2:
-        st.metric("Общая мощность", f"{filtered_df['Мощность (МВт)'].sum():,.0f} МВт")
+        total_power = filtered_df['Мощность (МВт)'].sum()
+        st.metric("Общая мощность", f"{total_power:,.0f} МВт")
     with col3:
-        st.metric("АЭС", len(filtered_df[filtered_df['Тип'] == 'АЭС']))
+        st.metric(f"АЭС {icons['АЭС']}", len(filtered_df[filtered_df['Тип'] == 'АЭС']))
     with col4:
-        st.metric("ГЭС", len(filtered_df[filtered_df['Тип'] == 'ГЭС']))
+        st.metric(f"ГЭС {icons['ГЭС']}", len(filtered_df[filtered_df['Тип'] == 'ГЭС']))
     with col5:
-        st.metric("ТЭЦ", len(filtered_df[filtered_df['Тип'] == 'ТЭЦ']))
+        st.metric(f"ТЭЦ {icons['ТЭЦ']}", len(filtered_df[filtered_df['Тип'] == 'ТЭЦ']))
 
     if st.session_state.data_source == "demo":
         st.warning(
@@ -273,35 +338,17 @@ def main():
     st.subheader("🗺️ Интерактивная карта")
     st.markdown("Нажмите на маркер для получения подробной информации о станции")
 
-    m = folium.Map(
-        location=[64.6863136, 97.7453061],
-        zoom_start=4,
-        min_zoom=2,
-    )
-    for _, plant in filtered_df.iterrows():
-        popup_text = f"""
-        <div style="min-width: 280px; font-family: Arial, sans-serif;">
-            <h3 style="color: #1f77b4; margin-bottom: 10px;">{plant['Название']}</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr><td style="padding: 4px;"><b>Тип:</b></td><td style="padding: 4px;">{plant['Тип']}</td></tr>
-                <tr><td style="padding: 4px;"><b>Мощность:</b></td><td style="padding: 4px;">{plant['Мощность (МВт)']:,.1f} МВт</td></tr>
-                <tr><td style="padding: 4px;"><b>Владелец:</b></td><td style="padding: 4px;">{plant['Владелец']}</td></tr>
-                <tr><td style="padding: 4px;"><b>Регион:</b></td><td style="padding: 4px;">{plant['Регион']}</td></tr>
-                <tr><td style="padding: 4px;"><b>Топливо:</b></td><td style="padding: 4px;">{plant['Топливо']}</td></tr>
-            </table>
-        </div>
-        """
+    if not filtered_df.empty:
+        if YANDEX_APIKEY:
+            map_html = create_yandex_map(filtered_df, YANDEX_APIKEY)
+            components.html(map_html, height=620)
+        else:
+            st.error(
+                "❌ Не указан API-ключ Яндекс.Карт. Добавьте его в файл .env как YANDEX_MAPS_APIKEY или прямо в код.")
+    else:
+        st.info("Нет станций, соответствующих выбранным фильтрам")
 
-        folium.Marker(
-            [plant['Широта'], plant['Долгота']],
-            popup=folium.Popup(popup_text, max_width=350),
-            tooltip=f"{plant['Название']} ({plant['Тип']}) - {plant['Мощность (МВт)']:,.1f} МВт",
-            icon=get_plant_icon(plant['Тип'])
-        ).add_to(m)
-
-    st_folium(m, width=2000, height=1000, key="main_map")
-
-    st.subheader("Информация о станциях")
+    st.subheader("📋 Информация о станциях")
 
     if not filtered_df.empty:
         columns_to_show = st.multiselect(
@@ -316,7 +363,7 @@ def main():
                 use_container_width=True,
                 height=400,
                 column_config={
-                    "Мощность (МВт)": st.column_config.NumberColumn(format="%.1f"),
+                    "Мощность (МВт)": st.column_config.NumberColumn(format="%.1f МВт"),
                     "Широта": st.column_config.NumberColumn(format="%.4f"),
                     "Долгота": st.column_config.NumberColumn(format="%.4f")
                 }
